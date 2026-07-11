@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Large local data and caches
+data/
+external/
+*.pth
+*.pt
+*.tar
+*.zip
+
+# Generated experiment outputs
+dist/
+outputs/*/heatmaps/
+outputs/*/binary_masks/
+outputs/*/reports/method_grid.png
+outputs/*/warning_events.jsonl
+outputs/*/comparison_table.csv
+
+# Keep small summary artifacts if explicitly added later
+!outputs/**/metrics.json
+!outputs/**/reports/result_table.md
+
+# Generated paper build and large figure pool
+paper/ccis_build/
+paper/figures/publication_panels/
+paper/template/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
