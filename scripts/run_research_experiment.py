@@ -40,22 +40,44 @@ def dataset_config(name: str) -> DatasetConfig:
             positive_label=14,
             ignore_label=255,
         )
+    if name == "unified":
+        return DatasetConfig(
+            name="unified_road_anomaly_eval",
+            image_dir=Path("data/unified_road_anomaly_eval/images"),
+            gt_dir=Path("data/unified_road_anomaly_eval/gt_binary"),
+            image_glob="*.*",
+            gt_suffix=".png",
+            positive_label=255,
+            ignore_label=-1,
+        )
     raise ValueError(f"Unknown dataset: {name}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the full RaOD-ERAS research experiment.")
-    parser.add_argument("--dataset", choices=["smiyc", "road_anomaly", "street_hazards"], default="smiyc")
+    parser.add_argument(
+        "--dataset",
+        choices=["smiyc", "road_anomaly", "street_hazards", "unified"],
+        default="smiyc",
+    )
     parser.add_argument("--no-dino", action="store_true", help="Disable DINOv2 and run only lightweight baselines.")
     parser.add_argument("--max-samples", type=int, default=None, help="Run a quick subset for debugging.")
     parser.add_argument("--out", type=Path, default=None, help="Output directory.")
+    parser.add_argument(
+        "--output-threshold",
+        type=float,
+        default=0.5,
+        help="Fixed inference threshold used for binary masks and warning events.",
+    )
     args = parser.parse_args()
+    if not 0.0 <= args.output_threshold <= 1.0:
+        parser.error("--output-threshold must be between 0 and 1.")
     out_dir = args.out or Path(f"outputs/research_experiment_{args.dataset}")
 
     config = ExperimentConfig(
         root=ROOT,
         dataset=dataset_config(args.dataset),
-        method=MethodConfig(use_dino=not args.no_dino),
+        method=MethodConfig(use_dino=not args.no_dino, output_threshold=args.output_threshold),
         output=OutputConfig(output_dir=out_dir),
         max_samples=args.max_samples,
     )

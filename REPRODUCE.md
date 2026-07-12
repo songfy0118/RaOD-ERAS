@@ -8,9 +8,24 @@ python -m pip install -r requirements.txt
 
 DINOv2 weights are downloaded automatically by `torch.hub` on the first run. The warning `xFormers is not available` is acceptable.
 
-## Expected Data Layout
+## Downloadable Unified Dataset
 
-Large datasets are not included in this repository. Put the prepared subsets in:
+The repository provides one Git LFS archive containing 189 standardized image/GT pairs:
+
+```powershell
+git lfs pull
+tar -xf dist\unified_road_anomaly_eval_189.zip
+```
+
+This creates:
+
+```text
+data/unified_road_anomaly_eval/images
+data/unified_road_anomaly_eval/gt_binary
+data/unified_road_anomaly_eval/metadata
+```
+
+The original source-specific layout, required only by `--dataset smiyc`, `road_anomaly`, or `street_hazards`, is:
 
 ```text
 data/smiyc_road_obstacle/paper_subset/images
@@ -32,10 +47,18 @@ StreetHazards partial: 149 available image/GT pairs
 ## Smoke Test
 
 ```powershell
-python scripts\run_research_experiment.py --dataset road_anomaly --max-samples 1 --out outputs\research_experiment_road_anomaly_smoke
+python scripts\run_research_experiment.py --dataset unified --max-samples 1 --out outputs\test_one
 ```
 
 ## Full Commands
+
+Run the downloadable unified evaluation set:
+
+```powershell
+python scripts\run_research_experiment.py --dataset unified --out outputs\research_experiment_unified
+```
+
+Source-specific commands require the original `paper_subset` folders:
 
 ```powershell
 python scripts\run_research_experiment.py --dataset smiyc
@@ -56,6 +79,8 @@ paper/figures
 Older exploratory output directories may exist locally, but they should not be used for the paper.
 
 ## Current Main Numbers
+
+These are exploratory per-image results, not official benchmark submissions. Binary masks and warning events use a fixed inference threshold; GT-selected thresholds are used only in the current exploratory metric report.
 
 | Dataset | Main observation |
 |---|---|

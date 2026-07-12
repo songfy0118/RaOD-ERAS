@@ -9,7 +9,7 @@ CIVS/
   paper/                draft paper, figures, tables, submission notes
   scripts/              runnable experiment / figure / packaging scripts
   src/raod_eras/        core method code
-  dist/                 generated zip packages
+  dist/                 unified dataset archive and generated packages
   _archive_unused/      old reference/smoke/Fishyscapes material, not used in final paper
 ```
 
@@ -56,8 +56,8 @@ data/unified_road_anomaly_eval/
 
 | File | Meaning |
 |---|---|
-| `run_research_experiment.py` | Main script to run SMIYC, RoadAnomaly, or StreetHazards experiments |
-| `build_unified_dataset.py` | Combines the three final datasets into `data/unified_road_anomaly_eval` |
+| `run_research_experiment.py` | Runs SMIYC, RoadAnomaly, StreetHazards, or the unified archive |
+| `build_unified_dataset.py` | Copies images, converts binary GT, and writes unified metadata |
 | `make_metric_digest.py` | Builds paper metric tables from `metrics.json` |
 | `make_ablation_and_objective_tables.py` | Builds ablation table and operating-point objective table |
 | `make_publication_figures.py` | Builds per-sample panels and main qualitative figure |
@@ -71,10 +71,17 @@ data/unified_road_anomaly_eval/
 
 ## How To Run
 
+Download and extract the Git LFS dataset archive:
+
+```powershell
+git lfs pull
+tar -xf dist\unified_road_anomaly_eval_189.zip
+```
+
 One-image smoke test:
 
 ```powershell
-python scripts\run_research_experiment.py --dataset road_anomaly --max-samples 1 --out outputs\test_one
+python scripts\run_research_experiment.py --dataset unified --max-samples 1 --out outputs\test_one
 ```
 
 Full final experiments:
@@ -133,7 +140,7 @@ The ablation objective is:
 L = 0.40 * (1 - AP) + 0.35 * (1 - F1) + 0.25 * FPR95
 ```
 
-This is not a neural-network loss. It is a validation criterion for selecting the best operating point in a training-free framework.
+This is not a neural-network loss. It is an exploratory validation criterion. Current F1/IoU values use per-image best-F1 thresholds; saved masks and warnings use the fixed inference threshold configured by `--output-threshold`.
 
 ## What Is Archived
 
@@ -150,4 +157,3 @@ outputs__research_experiment_street_hazards
 outputs__research_experiment_street_hazards_20
 outputs__research_experiment_street_hazards_smoke
 ```
-

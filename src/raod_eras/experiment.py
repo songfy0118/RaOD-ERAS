@@ -145,9 +145,12 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
             heatmap_path = config.output.output_dir / config.output.heatmap_dir / method_name / f"{sample.sample_id}.png"
             binary_path = config.output.output_dir / config.output.binary_dir / method_name / f"{sample.sample_id}.png"
             save_heatmap(heatmap_path, score)
-            save_binary(binary_path, score, metrics["threshold"])
+            output_threshold = config.method.output_threshold
+            save_binary(binary_path, score, output_threshold)
             heatmap_paths.setdefault(method_name, []).append(heatmap_path)
-            warning_events.extend(warning_events_from_binary_score(sample.sample_id, method_name, score, metrics["threshold"]))
+            warning_events.extend(
+                warning_events_from_binary_score(sample.sample_id, method_name, score, output_threshold)
+            )
         rows.append(row)
 
     summary = summarize(rows)

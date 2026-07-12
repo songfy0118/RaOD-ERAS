@@ -14,6 +14,7 @@ class MethodConfig:
     threshold_min: float = 0.05
     threshold_max: float = 0.95
     threshold_steps: int = 37
+    output_threshold: float = 0.5
 
 
 @dataclass

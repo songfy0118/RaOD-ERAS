@@ -36,7 +36,7 @@ class SMIYCRoadObstacleDataset:
             if gt_path.exists():
                 samples.append(Sample(image_path.stem, image_path, gt_path))
         if not samples:
-            raise FileNotFoundError(f"No SMIYC samples found under {self.config.image_dir}")
+            raise FileNotFoundError(f"No image/GT pairs found under {self.config.image_dir}")
         return samples
 
     def load(self, sample: Sample) -> LoadedSample:
