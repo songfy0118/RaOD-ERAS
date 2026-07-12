@@ -15,6 +15,58 @@ class MetricConfig:
     threshold_steps: int = 37
 
 
+class PixelMetricAccumulator:
+    """Streaming dataset-level metrics without retaining every score map."""
+
+    def __init__(self, threshold: float = 0.5, bins: int = 2048) -> None:
+        self.threshold = threshold
+        self.bins = bins
+        self.positive_hist = np.zeros(bins, dtype=np.int64)
+        self.negative_hist = np.zeros(bins, dtype=np.int64)
+        self.tp = self.fp = self.fn = 0
+
+    def update(self, score: np.ndarray, gt: np.ndarray, valid: np.ndarray) -> None:
+        values = np.clip(score[valid].astype(np.float32), 0.0, 1.0)
+        target = gt[valid].astype(bool)
+        indices = np.minimum((values * (self.bins - 1)).astype(np.int64), self.bins - 1)
+        self.positive_hist += np.bincount(indices[target], minlength=self.bins)
+        self.negative_hist += np.bincount(indices[~target], minlength=self.bins)
+        pred = values >= self.threshold
+        self.tp += int(np.logical_and(pred, target).sum())
+        self.fp += int(np.logical_and(pred, ~target).sum())
+        self.fn += int(np.logical_and(~pred, target).sum())
+
+    def compute(self) -> dict[str, float]:
+        precision = self.tp / max(self.tp + self.fp, 1)
+        recall = self.tp / max(self.tp + self.fn, 1)
+        f1 = 2 * precision * recall / max(precision + recall, 1e-8)
+        iou = self.tp / max(self.tp + self.fp + self.fn, 1)
+        tp_curve = np.cumsum(self.positive_hist[::-1])
+        fp_curve = np.cumsum(self.negative_hist[::-1])
+        positives = int(self.positive_hist.sum())
+        negatives = int(self.negative_hist.sum())
+        curve_precision = tp_curve / np.maximum(tp_curve + fp_curve, 1)
+        curve_recall = tp_curve / max(positives, 1)
+        previous_recall = np.concatenate([[0.0], curve_recall[:-1]])
+        ap = float(np.sum((curve_recall - previous_recall) * curve_precision))
+        if positives and negatives:
+            index = min(int(np.searchsorted(curve_recall, 0.95, side="left")), len(fp_curve) - 1)
+            fpr95 = float(fp_curve[index] / negatives)
+        else:
+            fpr95 = float("nan")
+        return {
+            "threshold": float(self.threshold),
+            "precision": float(precision),
+            "recall": float(recall),
+            "f1": float(f1),
+            "iou": float(iou),
+            "ap": ap,
+            "fpr95": fpr95,
+            "positive_pixels": float(positives),
+            "negative_pixels": float(negatives),
+        }
+
+
 def average_precision(score: np.ndarray, gt: np.ndarray, valid: np.ndarray) -> float:
     s = score[valid].reshape(-1).astype(np.float32)
     y = gt[valid].reshape(-1).astype(bool)

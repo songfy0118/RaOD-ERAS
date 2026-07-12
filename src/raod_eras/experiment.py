@@ -7,10 +7,10 @@ import numpy as np
 
 from .baselines import road_contrast_heatmap
 from .config import ExperimentConfig
-from .datasets import SMIYCRoadObstacleDataset
+from .datasets import SMIYCRoadObstacleDataset, Sample
 from .dino_features import DINOEncoder, multiscale_road_prototype_heatmap, road_prototype_heatmap
 from .io_utils import save_binary, save_csv, save_heatmap, save_json, save_jsonl, save_mask
-from .metrics import MetricConfig, evaluate_binary, evaluate_heatmap
+from .metrics import MetricConfig, PixelMetricAccumulator, evaluate_binary, evaluate_heatmap
 from .object_refinement import AnomalyInstance, refine_objects
 from .priors import ego_lane_prior, near_field_weight, normalize_score, trapezoid_road_prior
 from .refinement import DEFAULT_ERAS_VARIANTS, connected_components, refine_heatmap
@@ -46,6 +46,38 @@ def summarize_risk_plans(plans: list[dict[str, object]]) -> dict[str, object]:
         "mean_selected_clearance": float(np.mean(clearances)) if clearances else 0.0,
         "scope": "image-plane rule validation; not a vehicle controller",
     }
+
+
+def sample_source(sample_id: str) -> str:
+    for source in ("road_anomaly", "smiyc", "street_hazards"):
+        if sample_id.startswith(f"{source}__"):
+            return source
+    return "single_source"
+
+
+def select_samples(samples: list[Sample], limit: int | None, strategy: str) -> list[Sample]:
+    if not limit or limit >= len(samples):
+        return samples
+    if strategy == "head":
+        return samples[:limit]
+    if strategy != "stratified":
+        raise ValueError(f"Unknown sample strategy: {strategy}")
+    groups: dict[str, list[Sample]] = {}
+    for sample in samples:
+        groups.setdefault(sample_source(sample.sample_id), []).append(sample)
+    selected: list[Sample] = []
+    indices = {name: 0 for name in groups}
+    while len(selected) < limit:
+        progressed = False
+        for name in sorted(groups):
+            index = indices[name]
+            if index < len(groups[name]) and len(selected) < limit:
+                selected.append(groups[name][index])
+                indices[name] += 1
+                progressed = True
+        if not progressed:
+            break
+    return selected
 
 
 def warning_events_from_binary_score(
@@ -106,8 +138,7 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
     config.resolve()
     dataset = SMIYCRoadObstacleDataset(config.dataset)
     samples = dataset.list_samples()
-    if config.max_samples:
-        samples = samples[: config.max_samples]
+    samples = select_samples(samples, config.max_samples, config.sample_strategy)
 
     metric_config = MetricConfig(
         threshold_min=config.method.threshold_min,
@@ -125,6 +156,8 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
     heatmap_paths: dict[str, list[Path]] = {}
     warning_events: list[dict[str, object]] = []
     risk_plans: list[dict[str, object]] = []
+    aggregate: dict[str, PixelMetricAccumulator] = {}
+    source_aggregate: dict[str, dict[str, PixelMetricAccumulator]] = {}
 
     for sample in samples:
         loaded = dataset.load(sample)
@@ -199,20 +232,28 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
         for method_name, score in outputs.items():
             method_names.add(method_name)
             output_threshold = config.method.output_threshold
-            binary_mask = object_masks.get(method_name)
-            if binary_mask is None:
-                binary_mask = score >= output_threshold
+            binary_mask = score >= output_threshold
             metrics = evaluate_heatmap(score, loaded.gt, loaded.valid, metric_config)
             metrics.update(evaluate_binary(binary_mask, loaded.gt, loaded.valid))
+            if method_name in object_masks:
+                object_metrics = evaluate_binary(object_masks[method_name], loaded.gt, loaded.valid)
+                metrics.update({f"object_{key}": value for key, value in object_metrics.items()})
             for metric_name, value in metrics.items():
                 row[f"{method_name}_{metric_name}"] = value
+            aggregate.setdefault(method_name, PixelMetricAccumulator(output_threshold)).update(
+                score, loaded.gt, loaded.valid
+            )
+            source = sample_source(sample.sample_id)
+            source_aggregate.setdefault(source, {}).setdefault(
+                method_name, PixelMetricAccumulator(output_threshold)
+            ).update(score, loaded.gt, loaded.valid)
             heatmap_path = config.output.output_dir / config.output.heatmap_dir / method_name / f"{sample.sample_id}.png"
             binary_path = config.output.output_dir / config.output.binary_dir / method_name / f"{sample.sample_id}.png"
             save_heatmap(heatmap_path, score)
-            if method_name not in object_masks:
-                save_binary(binary_path, score, output_threshold)
-            else:
-                save_mask(binary_path, binary_mask)
+            save_binary(binary_path, score, output_threshold)
+            if method_name in object_masks:
+                object_path = config.output.output_dir / config.output.object_mask_dir / method_name / f"{sample.sample_id}.png"
+                save_mask(object_path, object_masks[method_name])
             heatmap_paths.setdefault(method_name, []).append(heatmap_path)
             warning_events.extend(
                 warning_events_from_binary_score(
@@ -239,6 +280,17 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
     method_list = sorted(method_names)
     save_csv(config.output.output_dir / "comparison_table.csv", rows)
     save_json(config.output.output_dir / "metrics.json", summary)
+    save_json(
+        config.output.output_dir / "aggregate_metrics.json",
+        {name: accumulator.compute() for name, accumulator in sorted(aggregate.items())},
+    )
+    save_json(
+        config.output.output_dir / "dataset_breakdown.json",
+        {
+            source: {name: accumulator.compute() for name, accumulator in sorted(methods.items())}
+            for source, methods in sorted(source_aggregate.items())
+        },
+    )
     save_jsonl(config.output.output_dir / "warning_events.jsonl", warning_events)
     save_jsonl(config.output.output_dir / "risk_plans.jsonl", risk_plans)
     save_json(config.output.output_dir / "risk_summary.json", summarize_risk_plans(risk_plans))

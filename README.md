@@ -11,10 +11,10 @@ The method is a training-free road anomaly segmentation and warning pipeline. It
 | Item | Status | Notes |
 |---|---|---|
 | Core model/framework | Done | `src/raod_eras/` |
-| Three-dataset experiments | Done | SMIYC, RoadAnomaly21, StreetHazards partial |
+| Three-dataset smoke tests | Done | Full frozen-protocol experiments are pending |
 | Heatmaps and binary masks | Done | Under `outputs/` |
 | Warning event output | Done | `warning_events.jsonl` |
-| Metrics and ablation tables | Done | `paper/tables/` |
+| Metrics and preliminary ablations | Done | Dataset-level final runs and external baselines are pending |
 | Paper figures | Done | `paper/figures/` |
 | CCIS draft PDF | Done | `paper/RaOD-ERAS_CCIS_draft.pdf` |
 | Unified evaluation archive | Done | `dist/unified_road_anomaly_eval_189.zip` (Git LFS) |
@@ -192,7 +192,9 @@ Each experiment writes:
 
 ```text
 outputs/research_experiment_<dataset>/
-  metrics.json              averaged metrics over the dataset
+  metrics.json              mean per-image exploratory metrics
+  aggregate_metrics.json    primary dataset-level pixel metrics
+  dataset_breakdown.json    source-wise aggregate metrics for unified runs
   comparison_table.csv      per-image detailed metrics
   warning_events.jsonl      warning boxes and risk scores
   risk_plans.jsonl          trajectory costs and selected rule action
@@ -200,6 +202,7 @@ outputs/research_experiment_<dataset>/
   ablation_manifest.json    ordered method chain and module definitions
   heatmaps/                 anomaly heatmap PNGs
   binary_masks/             thresholded black-white masks
+  object_masks/             separately evaluated object proposals
   reports/result_table.md   readable result table
   reports/method_grid.png   visual comparison grid
 ```
@@ -211,6 +214,8 @@ outputs/research_experiment_smiyc
 outputs/research_experiment_road_anomaly
 outputs/research_experiment_street_hazards_149
 ```
+
+These older folders were generated before the current aggregate protocol. They must be rerun before their numbers are used in the submission.
 
 Paper-ready materials:
 

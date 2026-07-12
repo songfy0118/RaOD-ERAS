@@ -33,6 +33,7 @@ class OutputConfig:
     output_dir: Path = Path("outputs/research_experiment")
     heatmap_dir: str = "heatmaps"
     binary_dir: str = "binary_masks"
+    object_mask_dir: str = "object_masks"
     report_dir: str = "reports"
 
 
@@ -43,6 +44,7 @@ class ExperimentConfig:
     method: MethodConfig = field(default_factory=MethodConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     max_samples: int | None = None
+    sample_strategy: str = "stratified"
 
     def resolve(self) -> "ExperimentConfig":
         self.dataset.image_dir = self._resolve(self.dataset.image_dir)

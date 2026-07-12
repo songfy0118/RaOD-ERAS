@@ -4,7 +4,9 @@ import unittest
 
 import numpy as np
 
-from src.raod_eras.metrics import evaluate_binary
+from src.raod_eras.datasets import Sample
+from src.raod_eras.experiment import select_samples
+from src.raod_eras.metrics import PixelMetricAccumulator, evaluate_binary
 from src.raod_eras.object_refinement import AnomalyInstance, refine_objects
 from src.raod_eras.risk_planning import plan_risk_response
 
@@ -19,6 +21,8 @@ class ClosedLoopTests(unittest.TestCase):
         self.assertTrue(mask.any())
         self.assertGreaterEqual(len(instances), 1)
         self.assertGreater(instances[0].confidence, 0.0)
+        self.assertTrue(np.all(heatmap[score == 0] == 0))
+        self.assertGreater(float(heatmap[mask].mean()), float(score[mask].mean()))
 
     def test_perfect_binary_metrics(self) -> None:
         gt = np.zeros((48, 48), dtype=bool)
@@ -48,6 +52,22 @@ class ClosedLoopTests(unittest.TestCase):
         plan = plan_risk_response(heatmap, [instance])
         self.assertIn(plan["selected_action"], {"keep_lane", "shift_left", "shift_right", "brake_or_stop"})
         self.assertGreaterEqual(len(plan["candidate_trajectories"]), 3)
+
+    def test_streaming_metrics_and_stratified_selection(self) -> None:
+        score = np.array([[0.9, 0.8], [0.2, 0.1]], dtype=np.float32)
+        gt = np.array([[1, 1], [0, 0]], dtype=bool)
+        accumulator = PixelMetricAccumulator(threshold=0.5, bins=32)
+        accumulator.update(score, gt, np.ones_like(gt))
+        metrics = accumulator.compute()
+        self.assertAlmostEqual(metrics["f1"], 1.0)
+        self.assertAlmostEqual(metrics["ap"], 1.0)
+        samples = [
+            Sample(f"{source}__{index}", __file__, __file__)
+            for source in ("road_anomaly", "smiyc", "street_hazards")
+            for index in range(3)
+        ]
+        selected = select_samples(samples, 3, "stratified")
+        self.assertEqual({item.sample_id.split("__")[0] for item in selected}, {"road_anomaly", "smiyc", "street_hazards"})
 
 
 if __name__ == "__main__":

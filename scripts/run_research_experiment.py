@@ -62,6 +62,12 @@ def main() -> None:
     )
     parser.add_argument("--no-dino", action="store_true", help="Disable DINOv2 and run only lightweight baselines.")
     parser.add_argument("--max-samples", type=int, default=None, help="Run a quick subset for debugging.")
+    parser.add_argument(
+        "--sample-strategy",
+        choices=["stratified", "head"],
+        default="stratified",
+        help="Use round-robin source sampling for unified subsets (default), or legacy head sampling.",
+    )
     parser.add_argument("--out", type=Path, default=None, help="Output directory.")
     parser.add_argument(
         "--output-threshold",
@@ -80,6 +86,7 @@ def main() -> None:
         method=MethodConfig(use_dino=not args.no_dino, output_threshold=args.output_threshold),
         output=OutputConfig(output_dir=out_dir),
         max_samples=args.max_samples,
+        sample_strategy=args.sample_strategy,
     )
     summary = run_experiment(config)
     print(json.dumps(summary, indent=2, ensure_ascii=False))

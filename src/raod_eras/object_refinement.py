@@ -17,7 +17,8 @@ class ObjectRefinementConfig:
     min_boundary_contrast: float = -0.03
     min_confidence: float = 0.42
     feedback_gain: float = 0.45
-    background_suppression: float = 0.72
+    feedback_min_confidence: float = 0.70
+    rejected_candidate_suppression: float = 0.0
     morphology_radius: int = 2
     max_instances: int = 20
 
@@ -132,11 +133,16 @@ def refine_objects(
         accepted[ys, xs] = True
         instance_confidence[ys, xs] = instance.confidence
 
-    feedback = score * config.background_suppression
-    if instances:
-        boosted = score * (1.0 + config.feedback_gain * instance_confidence)
-        feedback[accepted] = boosted[accepted]
-    return normalize_score(feedback), accepted, instances
+    # Preserve the calibrated base ranking. Only verified objects receive a
+    # bounded residual boost; rejected candidate pixels are mildly suppressed.
+    feedback = score.copy()
+    rejected = candidates & ~accepted
+    feedback[rejected] *= 1.0 - config.rejected_candidate_suppression
+    trusted = accepted & (instance_confidence >= config.feedback_min_confidence)
+    if np.any(trusted):
+        boosted = score + config.feedback_gain * instance_confidence * (1.0 - score)
+        feedback[trusted] = boosted[trusted]
+    return np.clip(feedback, 0.0, 1.0).astype(np.float32), accepted, instances
 
 
 def _disk(radius: int) -> np.ndarray:
