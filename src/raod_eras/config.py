@@ -14,7 +14,14 @@ class MethodConfig:
     threshold_min: float = 0.05
     threshold_max: float = 0.95
     threshold_steps: int = 37
-    output_threshold: float = 0.5
+    output_threshold: float = 0.70
+    full_ablations: bool = False
+    per_image_rank_metrics: bool = False
+    risk_fusion_alpha: float = 0.20
+    calibration_sweep: bool = False
+    threshold_sweep: bool = False
+    min_component_area_ratio: float = 0.00005
+    cleanup_sweep: bool = False
 
 
 @dataclass
@@ -45,6 +52,7 @@ class ExperimentConfig:
     output: OutputConfig = field(default_factory=OutputConfig)
     max_samples: int | None = None
     sample_strategy: str = "stratified"
+    sample_offset: int = 0
 
     def resolve(self) -> "ExperimentConfig":
         self.dataset.image_dir = self._resolve(self.dataset.image_dir)

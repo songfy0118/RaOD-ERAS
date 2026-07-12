@@ -1,5 +1,29 @@
 # Reproduce RaOD-ERAS Experiments
 
+## Current RiskPrompt-SAM Paper Experiment
+
+Use the CUDA-enabled `Test2` environment and the SAM-B checkpoint at `external/S2M_official/tools/sam_vit_b_01ec64.pth`.
+
+```powershell
+conda run -n Test2 python scripts\run_s2m_comparison.py --max-samples 1 --out outputs\riskprompt_smoke
+conda run -n Test2 python scripts\run_s2m_comparison.py --max-samples 10 --sample-offset 0 --out outputs\riskprompt_calibration_10
+conda run -n Test2 python scripts\run_s2m_comparison.py --max-samples 20 --sample-offset 10 --ugains-threshold 0.60 --out outputs\riskprompt_validation_20
+conda run -n Test2 python scripts\run_s2m_comparison.py --max-samples 189 --ugains-threshold 0.60 --out outputs\riskprompt_full_189
+conda run -n Test2 python scripts\analyze_prompt_results.py outputs\riskprompt_full_189\results.json
+conda run -n Test2 python scripts\make_riskprompt_figure.py outputs\riskprompt_full_189\results.json
+```
+
+The 10 calibration images and 20 validation images are disjoint. The UGainS-style output threshold is frozen at `0.60`; RiskPrompt-SAM uses mask-level boundary-consistency selection rather than a GT-selected binary threshold. The full run caches each image under `outputs/riskprompt_full_189/cache`, so the command is resumable.
+
+Primary outputs:
+
+```text
+outputs/riskprompt_full_189/results.json
+outputs/riskprompt_full_189/reports/paper_statistics.md
+outputs/riskprompt_full_189/reports/paper_statistics.json
+paper/figures/riskprompt_qualitative.png
+```
+
 ## Environment
 
 ```powershell
@@ -21,7 +45,7 @@ This creates:
 
 ```text
 data/unified_road_anomaly_eval/images
-data/unified_road_anomaly_eval/gt_binary
+data/unified_road_anomaly_eval/gt_labels
 data/unified_road_anomaly_eval/metadata
 ```
 
@@ -36,13 +60,15 @@ data/street_hazards/paper_subset/images
 data/street_hazards/paper_subset/gt
 ```
 
-The current local experiments used:
+The current local experiments used partial public validation data rather than complete private benchmark test sets:
 
 ```text
 SMIYC RoadObstacle: 30 public GT images
 RoadAnomaly21: 10 public GT images
 StreetHazards partial: 149 available image/GT pairs
 ```
+
+Standardized labels use `0=normal`, `1=anomaly`, and `255=ignore`. Do not convert ignored pixels to normal background; doing so changes precision and FPR95 and is not equivalent to the source protocol.
 
 ## Smoke Test
 

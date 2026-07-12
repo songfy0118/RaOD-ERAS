@@ -25,13 +25,19 @@ class PixelMetricAccumulator:
         self.negative_hist = np.zeros(bins, dtype=np.int64)
         self.tp = self.fp = self.fn = 0
 
-    def update(self, score: np.ndarray, gt: np.ndarray, valid: np.ndarray) -> None:
+    def update(
+        self,
+        score: np.ndarray,
+        gt: np.ndarray,
+        valid: np.ndarray,
+        binary_pred: np.ndarray | None = None,
+    ) -> None:
         values = np.clip(score[valid].astype(np.float32), 0.0, 1.0)
         target = gt[valid].astype(bool)
         indices = np.minimum((values * (self.bins - 1)).astype(np.int64), self.bins - 1)
         self.positive_hist += np.bincount(indices[target], minlength=self.bins)
         self.negative_hist += np.bincount(indices[~target], minlength=self.bins)
-        pred = values >= self.threshold
+        pred = values >= self.threshold if binary_pred is None else binary_pred[valid].astype(bool)
         self.tp += int(np.logical_and(pred, target).sum())
         self.fp += int(np.logical_and(pred, ~target).sum())
         self.fn += int(np.logical_and(~pred, target).sum())

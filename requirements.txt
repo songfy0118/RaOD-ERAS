@@ -4,3 +4,4 @@ matplotlib
 torch
 torchvision
 scipy
+segment-anything

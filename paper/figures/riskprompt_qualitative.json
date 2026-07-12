@@ -1,0 +1,22 @@
+[
+  {
+    "id": "road_anomaly__validation0000",
+    "s2m_f1": 0.3503219537621706,
+    "riskprompt_f1": 0.9283838376838911
+  },
+  {
+    "id": "smiyc__validation_10",
+    "s2m_f1": 0.7426917510853834,
+    "riskprompt_f1": 0.7549971444888635
+  },
+  {
+    "id": "street_hazards__t6_1108",
+    "s2m_f1": 0.0,
+    "riskprompt_f1": 0.4724741615692891
+  },
+  {
+    "id": "smiyc__validation_3",
+    "s2m_f1": 0.8880794701986755,
+    "riskprompt_f1": 0.8025059053096436
+  }
+]

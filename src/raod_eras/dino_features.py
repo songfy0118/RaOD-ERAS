@@ -21,8 +21,9 @@ class DINOEncoder:
             raise RuntimeError("PyTorch and torchvision are required for DINO experiments.") from exc
         self.torch = torch
         self.transforms = transforms
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = torch.hub.load("facebookresearch/dinov2", self.model_name)
-        self.model.eval()
+        self.model.to(self.device).eval()
 
     def patch_features(self, image: Image.Image, input_size: int | None = None) -> np.ndarray:
         size = input_size or self.input_size
@@ -34,7 +35,7 @@ class DINOEncoder:
                 self.transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             ]
         )
-        x = prep(image.convert("RGB")).unsqueeze(0)
+        x = prep(image.convert("RGB")).unsqueeze(0).to(self.device)
         with self.torch.no_grad():
             tokens = self.model.forward_features(x)["x_norm_patchtokens"][0]
         feats = tokens.cpu().numpy()

@@ -18,15 +18,21 @@ external/
 # Generated experiment outputs
 dist/
 _archive_unused/
-outputs/*/heatmaps/
-outputs/*/binary_masks/
-outputs/*/reports/method_grid.png
-outputs/*/warning_events.jsonl
-outputs/*/comparison_table.csv
+outputs/**
 
-# Keep small summary artifacts if explicitly added later
-!outputs/**/metrics.json
-!outputs/**/reports/result_table.md
+!dist/
+dist/**
+!dist/unified_road_anomaly_eval_189.zip
+!dist/unified_road_anomaly_eval_189.manifest.json
+
+# Keep only compact final summaries used by the README and paper.
+!outputs/riskprompt_full_189/
+outputs/riskprompt_full_189/**
+!outputs/riskprompt_full_189/results_summary.json
+!outputs/riskprompt_full_189/reports/
+outputs/riskprompt_full_189/reports/**
+!outputs/riskprompt_full_189/reports/paper_statistics.md
+!outputs/riskprompt_full_189/reports/paper_statistics.json
 
 # Generated paper build and large figure pool
 paper/ccis_build/

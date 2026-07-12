@@ -55,11 +55,20 @@ def sample_source(sample_id: str) -> str:
     return "single_source"
 
 
-def select_samples(samples: list[Sample], limit: int | None, strategy: str) -> list[Sample]:
-    if not limit or limit >= len(samples):
-        return samples
+def select_samples(
+    samples: list[Sample],
+    limit: int | None,
+    strategy: str,
+    offset: int = 0,
+) -> list[Sample]:
+    if offset < 0:
+        raise ValueError("Sample offset must be non-negative.")
+    if not limit:
+        return samples[offset:]
     if strategy == "head":
-        return samples[:limit]
+        return samples[offset : offset + limit]
+    if offset == 0 and limit >= len(samples):
+        return samples
     if strategy != "stratified":
         raise ValueError(f"Unknown sample strategy: {strategy}")
     groups: dict[str, list[Sample]] = {}
@@ -67,17 +76,18 @@ def select_samples(samples: list[Sample], limit: int | None, strategy: str) -> l
         groups.setdefault(sample_source(sample.sample_id), []).append(sample)
     selected: list[Sample] = []
     indices = {name: 0 for name in groups}
-    while len(selected) < limit:
+    target = min(offset + limit, len(samples))
+    while len(selected) < target:
         progressed = False
         for name in sorted(groups):
             index = indices[name]
-            if index < len(groups[name]) and len(selected) < limit:
+            if index < len(groups[name]) and len(selected) < target:
                 selected.append(groups[name][index])
                 indices[name] += 1
                 progressed = True
         if not progressed:
             break
-    return selected
+    return selected[offset : offset + limit]
 
 
 def warning_events_from_binary_score(
@@ -134,11 +144,23 @@ def warning_events_from_binary_score(
     return events[:max_events]
 
 
+def remove_small_components(mask: np.ndarray, min_area_ratio: float) -> np.ndarray:
+    if min_area_ratio <= 0.0:
+        return mask.astype(bool)
+    _, components = connected_components(mask)
+    min_area = max(4, int(mask.size * min_area_ratio))
+    cleaned = np.zeros_like(mask, dtype=bool)
+    for ys, xs in components.values():
+        if len(xs) >= min_area:
+            cleaned[ys, xs] = True
+    return cleaned
+
+
 def run_experiment(config: ExperimentConfig) -> dict[str, float]:
     config.resolve()
     dataset = SMIYCRoadObstacleDataset(config.dataset)
     samples = dataset.list_samples()
-    samples = select_samples(samples, config.max_samples, config.sample_strategy)
+    samples = select_samples(samples, config.max_samples, config.sample_strategy, config.sample_offset)
 
     metric_config = MetricConfig(
         threshold_min=config.method.threshold_min,
@@ -164,6 +186,7 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
         image_paths.append(sample.image_path)
         gt_masks.append(loaded.gt)
         outputs: dict[str, np.ndarray] = {}
+        binary_overrides: dict[str, np.ndarray] = {}
         object_masks: dict[str, np.ndarray] = {}
         object_instances: dict[str, list[AnomalyInstance]] = {}
         timings: dict[str, float] = {}
@@ -192,16 +215,27 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
             near = np.repeat(near_field_weight((h, w)), w, axis=1)
             local = outputs.get("roadcontrast", np.zeros_like(outputs["dino_multiscale"]))
             risk_prior = 0.62 + 0.20 * road + 0.18 * lane * near
-            outputs["dino_risk_heatmap"] = normalize_score(
+            risk_candidate = normalize_score(
                 (0.78 * outputs["dino_multiscale"] + 0.22 * local) * risk_prior
             )
+            alpha = config.method.risk_fusion_alpha
+            outputs["dino_risk_heatmap"] = normalize_score(
+                (1.0 - alpha) * outputs["dino"] + alpha * risk_candidate
+            )
+            if config.method.calibration_sweep:
+                for sweep_alpha in (0.20, 0.35, 0.50, 0.65, 0.80, 1.00):
+                    outputs[f"dino_risk_a{int(100 * sweep_alpha):03d}"] = normalize_score(
+                        (1.0 - sweep_alpha) * outputs["dino"] + sweep_alpha * risk_candidate
+                    )
 
         if config.method.use_eras:
             for base_name, base_score in list(outputs.items()):
-                if base_name not in {"roadcontrast", "dino", "dino_risk_heatmap"}:
+                allowed_bases = {"roadcontrast", "dino", "dino_risk_heatmap"} if config.method.full_ablations else {"dino_risk_heatmap"}
+                if base_name not in allowed_bases:
                     continue
                 refined_outputs: dict[str, np.ndarray] = {}
-                for variant in DEFAULT_ERAS_VARIANTS:
+                variants = DEFAULT_ERAS_VARIANTS if config.method.full_ablations else [DEFAULT_ERAS_VARIANTS[1]]
+                for variant in variants:
                     method_name = f"{base_name}_{variant.name}"
                     t0 = time.perf_counter()
                     refined_outputs[variant.name], _ = refine_heatmap(base_score, variant)
@@ -212,11 +246,32 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
                     outputs["dino_eras_guarded"] = normalize_score(0.78 * base_score + 0.22 * refined_outputs["eras_light"])
                     timings["dino_eras_guarded_seconds"] = time.perf_counter() - t0
 
-        for source_name in (
-            "roadcontrast_eras_balanced",
-            "dino_eras_balanced",
-            "dino_risk_heatmap_eras_balanced",
-        ):
+        if "dino_risk_heatmap" in outputs and "dino_risk_heatmap_eras_balanced" in outputs:
+            # Final dual output: preserve the calibrated anomaly ranking for
+            # AP/FPR95, and use ERAS only for the object-like binary decision.
+            outputs["raod_eras_final"] = outputs["dino_risk_heatmap"]
+            binary_overrides["raod_eras_final"] = remove_small_components(
+                outputs["dino_risk_heatmap_eras_balanced"] >= config.method.output_threshold,
+                config.method.min_component_area_ratio,
+            )
+            if config.method.threshold_sweep:
+                for threshold in (0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90):
+                    name = f"raod_eras_t{int(100 * threshold):02d}"
+                    outputs[name] = outputs["dino_risk_heatmap"]
+                    binary_overrides[name] = outputs["dino_risk_heatmap_eras_balanced"] >= threshold
+            if config.method.cleanup_sweep:
+                base_mask = outputs["dino_risk_heatmap_eras_balanced"] >= config.method.output_threshold
+                for ratio in (0.0, 0.00002, 0.00005, 0.00010, 0.00020, 0.00050):
+                    name = f"raod_cleanup_{int(ratio * 100000):03d}"
+                    outputs[name] = outputs["dino_risk_heatmap"]
+                    binary_overrides[name] = remove_small_components(base_mask, ratio)
+
+        closed_loop_sources = (
+            ("roadcontrast_eras_balanced", "dino_eras_balanced", "dino_risk_heatmap_eras_balanced")
+            if config.method.full_ablations
+            else ("dino_risk_heatmap_eras_balanced",)
+        )
+        for source_name in closed_loop_sources:
             if source_name not in outputs:
                 continue
             method_name = source_name.replace("eras_balanced", "closed_loop")
@@ -232,8 +287,12 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
         for method_name, score in outputs.items():
             method_names.add(method_name)
             output_threshold = config.method.output_threshold
-            binary_mask = score >= output_threshold
-            metrics = evaluate_heatmap(score, loaded.gt, loaded.valid, metric_config)
+            binary_mask = binary_overrides.get(method_name, score >= output_threshold)
+            metrics = (
+                evaluate_heatmap(score, loaded.gt, loaded.valid, metric_config)
+                if config.method.per_image_rank_metrics
+                else {}
+            )
             metrics.update(evaluate_binary(binary_mask, loaded.gt, loaded.valid))
             if method_name in object_masks:
                 object_metrics = evaluate_binary(object_masks[method_name], loaded.gt, loaded.valid)
@@ -241,12 +300,12 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
             for metric_name, value in metrics.items():
                 row[f"{method_name}_{metric_name}"] = value
             aggregate.setdefault(method_name, PixelMetricAccumulator(output_threshold)).update(
-                score, loaded.gt, loaded.valid
+                score, loaded.gt, loaded.valid, binary_pred=binary_mask
             )
             source = sample_source(sample.sample_id)
             source_aggregate.setdefault(source, {}).setdefault(
                 method_name, PixelMetricAccumulator(output_threshold)
-            ).update(score, loaded.gt, loaded.valid)
+            ).update(score, loaded.gt, loaded.valid, binary_pred=binary_mask)
             heatmap_path = config.output.output_dir / config.output.heatmap_dir / method_name / f"{sample.sample_id}.png"
             binary_path = config.output.output_dir / config.output.binary_dir / method_name / f"{sample.sample_id}.png"
             save_heatmap(heatmap_path, score)
@@ -303,6 +362,7 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
                 "dino_risk_heatmap",
                 "dino_risk_heatmap_eras_balanced",
                 "dino_risk_heatmap_closed_loop",
+                "raod_eras_final",
             ],
             "notes": {
                 "dino": "single-scale road-prototype baseline",
@@ -310,6 +370,7 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
                 "dino_risk_heatmap": "multi-scale heatmap plus local contrast and road/lane risk prior",
                 "dino_risk_heatmap_eras_balanced": "risk heatmap plus ERAS spatial refinement",
                 "dino_risk_heatmap_closed_loop": "object verification and mask-to-heatmap feedback",
+                "raod_eras_final": "risk heatmap for ranking plus ERAS binary mask as a dual-output prediction",
             },
         },
     )
