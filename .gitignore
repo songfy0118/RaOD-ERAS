@@ -25,7 +25,7 @@ dist/**
 !dist/unified_road_anomaly_eval_189.zip
 !dist/unified_road_anomaly_eval_189.manifest.json
 
-# Keep only compact final summaries used by the README and paper.
+# Earlier compact comparison summary
 !outputs/riskprompt_full_189/
 outputs/riskprompt_full_189/**
 !outputs/riskprompt_full_189/results_summary.json
@@ -34,10 +34,30 @@ outputs/riskprompt_full_189/reports/**
 !outputs/riskprompt_full_189/reports/paper_statistics.md
 !outputs/riskprompt_full_189/reports/paper_statistics.json
 
-# Generated paper build and large figure pool
+# Final A-D ablation: keep metrics and reports, not images or caches
+!outputs/riskprompt_ablation_full_189_v2/
+outputs/riskprompt_ablation_full_189_v2/**
+!outputs/riskprompt_ablation_full_189_v2/results.json
+!outputs/riskprompt_ablation_full_189_v2/reports/
+outputs/riskprompt_ablation_full_189_v2/reports/**
+!outputs/riskprompt_ablation_full_189_v2/reports/ablation_report.md
+!outputs/riskprompt_ablation_full_189_v2/reports/ablation_statistics.json
+
+# Official SMIYC protocol summaries only
+!outputs/smiyc_official_protocol/
+outputs/smiyc_official_protocol/**
+!outputs/smiyc_official_protocol/protocol_run_summary_RiskPromptSAM-v2.json
+!outputs/smiyc_official_protocol/protocol_run_summary_DINOBase-v2.json
+
+# Generated paper build and internal working documents
 paper/ccis_build/
 paper/figures/publication_panels/
 paper/template/
+paper/RiskPrompt-SAM_中文论文初稿.docx
+paper/RiskPrompt-SAM_中文论文初稿.pdf
+paper/literature_review_50_zh.md
+paper/paper_quality_audit_zh.md
+paper/review_round_*_zh.md
 
 # OS / IDE
 .DS_Store

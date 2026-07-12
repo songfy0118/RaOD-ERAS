@@ -1,0 +1,280 @@
+{
+  "method": "DINOBase-v2",
+  "dataset": "ObstacleTrack-validation",
+  "num_frames": 30,
+  "prediction_validation": [
+    {
+      "fid": "validation_1",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_10",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_11",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_12",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_13",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_14",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_15",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_16",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_17",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_18",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_2",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_20",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_3",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_30",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_31",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_32",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_33",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_34",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_35",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_36",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_37",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_38",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_39",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_4",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_40",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_5",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_6",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_7",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_8",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "fid": "validation_9",
+      "shape": [
+        1080,
+        1920
+      ],
+      "min": 0.0,
+      "max": 1.0
+    }
+  ],
+  "pixel_result_repr": "BinaryClassificationCurve(method_name='DINOBase-v2', dataset_name='ObstacleTrack-validation', area_PRC=np.float64(0.6925584667270321), curve_recall=array([0.00000000e+00, 1.54104575e-05, 1.54104575e-05, ...,\n       1.00000000e+00, 1.00000000e+00, 1.00000000e+00], shape=(6545,)), curve_precision=array([1.        , 1.        , 1.        , ..., 0.00674685, 0.00674685,\n       0.00674685], shape=(6545,)), area_ROC=np.float64(0.9966859432482128), curve_tpr=array([0.00000000e+00, 1.54104575e-05, 1.54104575e-05, ...,\n       1.00000000e+00, 1.00000000e+00, 1.00000000e+00], shape=(6545,)), curve_fpr=array([0., 0., 0., ..., 1., 1., 1.], shape=(6545,)), thresholds=array([ 1.97216797e+00,  9.72167969e-01,  9.72167969e-01, ...,\n       -1.31225586e-03, -6.21795654e-03, -1.00021362e-02], shape=(6545,)), tpr95_fpr=np.float64(0.012913577132413246), tpr95_threshold=0.603515625, IOU_at_05=nan, PDR_at_05=nan, recall50_threshold=0.83349609375, best_f1=np.float64(0.6706010260149475), best_f1_threshold=0.76904296875)",
+  "segment_result_repr": "ResultsInfo(method_name='DINOBase-v2', dataset_name='ObstacleTrack-validation', tp_25=np.int64(20), tp_50=np.int64(12), tp_75=np.int64(2), tp_mean=np.float64(11.090909090909092), fp_25=np.int64(0), fp_50=np.int64(4), fp_75=np.int64(14), fp_mean=np.float64(5.909090909090909), fn_25=np.int64(25), fn_50=np.int64(33), fn_75=np.int64(43), fn_mean=np.float64(33.90909090909091), f1_25=np.float64(0.6153846153846154), f1_50=np.float64(0.39344262295081966), f1_75=np.float64(0.06557377049180328), f1_mean=np.float64(0.3517351980500346), sIoU_gt=np.float64(0.24422735859196745), sIoU_pred=np.float64(0.47783613637558847), prec_pred=np.float64(0.6886634317858177))",
+  "protocol": "Official SegmentMeIfYouCan road-anomaly-benchmark Evaluation API."
+}

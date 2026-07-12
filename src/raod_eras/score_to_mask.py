@@ -20,6 +20,8 @@ class PromptConfig:
     point_candidate_limit: int = 4096
     mask_nms_iou: float = 0.70
     min_mask_score: float = 0.38
+    boundary_sam_margin: float = 0.03
+    boundary_sam_weight: float = 0.75
 
 
 @dataclass(frozen=True)
@@ -252,13 +254,17 @@ def sam_point_prompts(
     return PromptResult(output, _feedback_score(score, accepted), points=tuple(points))
 
 
-def sam_risk_box_prompts(
+def sam_box_ablation(
     predictor: object,
     score: np.ndarray,
     config: PromptConfig = PromptConfig(),
+    *,
+    road_aware: bool,
+    boundary_aware: bool,
+    feedback: bool,
 ) -> PromptResult:
-    """Select one boundary-consistent SAM mask per road-aware anomaly box."""
-    boxes = score_boxes(score, config, risk_aware=True)
+    """Run one explicit box-prompt ablation without coupling module switches."""
+    boxes = score_boxes(score, config, risk_aware=road_aware)
     selected_candidates: list[tuple[float, float, np.ndarray]] = []
     for box in boxes:
         masks, sam_scores, _ = predictor.predict(box=np.asarray(box), multimask_output=True)
@@ -270,15 +276,41 @@ def sam_risk_box_prompts(
             ring = ndimage.binary_dilation(mask, iterations=3) & ~mask
             outside = float(score[ring].mean()) if ring.any() else 0.0
             contrast = float(np.clip(inside - outside, -1.0, 1.0))
-            quality = 0.55 * float(sam_score) + 0.45 * contrast
-            alternatives.append((quality, float(sam_score), mask.astype(bool)))
+            alternatives.append((float(sam_score), contrast, mask.astype(bool)))
         if alternatives:
-            selected_candidates.append(max(alternatives, key=lambda item: item[0]))
+            if boundary_aware:
+                best_sam = max(item[0] for item in alternatives)
+                guarded = [item for item in alternatives if item[0] >= best_sam - config.boundary_sam_margin]
+                weight = config.boundary_sam_weight
+                selected = max(guarded, key=lambda item: weight * item[0] + (1.0 - weight) * item[1])
+                quality = weight * selected[0] + (1.0 - weight) * selected[1]
+            else:
+                selected = max(alternatives, key=lambda item: item[0])
+                quality = selected[0]
+            selected_candidates.append((quality, selected[0], selected[2]))
+
     kept = _mask_nms(selected_candidates, config.mask_nms_iou)
     output = np.zeros(score.shape, dtype=bool)
     for _, _, mask in kept:
         output |= mask
-    return PromptResult(output, _feedback_score(score, kept), boxes=tuple(boxes))
+    refined = _feedback_score(score, kept) if feedback else score.astype(np.float32, copy=True)
+    return PromptResult(output, refined, boxes=tuple(boxes))
+
+
+def sam_risk_box_prompts(
+    predictor: object,
+    score: np.ndarray,
+    config: PromptConfig = PromptConfig(),
+) -> PromptResult:
+    """Select one boundary-consistent SAM mask per road-aware anomaly box."""
+    return sam_box_ablation(
+        predictor,
+        score,
+        config,
+        road_aware=True,
+        boundary_aware=True,
+        feedback=True,
+    )
 
 
 def sam_hybrid_prompts(
