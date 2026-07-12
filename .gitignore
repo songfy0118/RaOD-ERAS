@@ -17,6 +17,7 @@ external/
 
 # Generated experiment outputs
 dist/
+_archive_unused/
 outputs/*/heatmaps/
 outputs/*/binary_masks/
 outputs/*/reports/method_grid.png

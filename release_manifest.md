@@ -1,31 +1,12 @@
 # Release Manifest
 
 - `.gitignore`
+- `PROJECT_STRUCTURE.md`
 - `README.md`
 - `REPRODUCE.md`
-- `dist/ccis_submission_package/README_SUBMISSION.txt`
-- `dist/ccis_submission_package/RaOD-ERAS_CCIS_draft.pdf`
-- `dist/ccis_submission_package/current_research_status.md`
-- `dist/ccis_submission_package/figures/framework_pipeline.png`
-- `dist/ccis_submission_package/figures/main_qualitative_figure.png`
-- `dist/ccis_submission_package/figures/warning_event_example.png`
-- `dist/ccis_submission_package/llncs.cls`
-- `dist/ccis_submission_package/main.tex`
-- `dist/ccis_submission_package/references.bib`
-- `dist/ccis_submission_package/splncs04.bst`
-- `dist/ccis_submission_package/tables/ablation_objective.md`
-- `dist/ccis_submission_package/tables/quantitative_digest.md`
 - `paper/RaOD-ERAS_CCIS_draft.pdf`
 - `paper/author_metadata_examples.md`
 - `paper/author_metadata_template.json`
-- `paper/ccis_build/figures/framework_pipeline.png`
-- `paper/ccis_build/figures/warning_event_example.png`
-- `paper/ccis_build/llncs.cls`
-- `paper/ccis_build/main.bbl`
-- `paper/ccis_build/main.pdf`
-- `paper/ccis_build/main.tex`
-- `paper/ccis_build/references.bib`
-- `paper/ccis_build/splncs04.bst`
 - `paper/ccis_submission_notes.md`
 - `paper/current_research_status.md`
 - `paper/figures/framework_pipeline.png`

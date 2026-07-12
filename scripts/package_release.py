@@ -18,7 +18,9 @@ EXCLUDE_DIRS = {
     ".ruff_cache",
     ".venv",
     "venv",
+    "_archive_unused",
     "data",
+    "dist",
     "external",
     "outputs",
 }
@@ -31,6 +33,8 @@ EXCLUDE_PATTERNS = [
     "*.tar",
     "*.zip",
     "paper/template/*",
+    "paper/ccis_build/*",
+    "paper/ccis_build/**/*",
     "paper/ccis_build/*.aux",
     "paper/ccis_build/*.blg",
     "paper/ccis_build/*.log",

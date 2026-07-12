@@ -2,34 +2,39 @@
 
 Road-Prototype Anomaly Heatmap with Ego-Lane Risk-Aware Refinement for Unexpected Road Obstacle Segmentation.
 
-This repository contains a lightweight training-free pipeline for road anomaly segmentation in intelligent driving scenes. It uses pretrained DINOv2 features to generate road-prototype anomaly heatmaps and refines them with ERAS, an ego-lane risk-aware component refinement module.
-
-## Method
+This project is the cleaned CIVS conference-paper workspace. The model/framework is already built. It is a training-free road anomaly segmentation pipeline:
 
 ```text
-RGB road image
-  -> DINOv2 patch features
+RGB image
+  -> DINOv2 feature extractor
   -> road-prototype anomaly heatmap
-  -> ERAS risk-aware refinement
+  -> ERAS ego-lane risk refinement
   -> binary anomaly mask
-  -> warning_events.jsonl
+  -> warning event JSONL
 ```
 
-The final output is not only a heatmap. Each experiment also exports binary masks and structured warning events with bounding boxes, risk scores, and a suggested downstream action.
+It does not train a new backbone from scratch. It uses pretrained DINOv2 and our road-prototype plus ERAS refinement logic.
 
-## Datasets
+## Final Datasets
 
-Current local datasets:
+The final experiments use these local datasets:
+
+| Dataset | Local folder | Samples with GT | Role |
+|---|---|---:|---|
+| SMIYC RoadObstacle | `data/smiyc_road_obstacle` | 30 | Main road-obstacle benchmark |
+| RoadAnomaly21 | `data/road_anomaly` | 10 | Cross-dataset anomaly validation |
+| StreetHazards partial | `data/street_hazards` | 149 | Larger partial OOD validation |
+| Unified index | `data/unified_road_anomaly_eval` | 189 | Standardized combined evaluation set |
+
+Fishyscapes-only mask data and old reference code were moved to `_archive_unused/`.
+
+## Quick Run
+
+Open this folder in PyCharm:
 
 ```text
-data/smiyc_road_obstacle/      SMIYC RoadObstacle, 30 public GT images
-data/road_anomaly/             RoadAnomaly21, 10 public GT images
-data/street_hazards/           StreetHazards partial subset, 149 image/GT pairs available
+C:\Users\93785\Desktop\CIVS
 ```
-
-Large datasets and model caches should not be committed to GitHub.
-
-## Quick Start
 
 Install dependencies:
 
@@ -37,116 +42,90 @@ Install dependencies:
 python -m pip install -r requirements.txt
 ```
 
-Run one sample smoke test:
+Run one image first:
 
 ```powershell
-python scripts\run_research_experiment.py --dataset road_anomaly --max-samples 1 --out outputs\research_experiment_road_anomaly_smoke
+python scripts\run_research_experiment.py --dataset road_anomaly --max-samples 1 --out outputs\test_one
 ```
 
-Run SMIYC:
+Run the three final experiments:
 
 ```powershell
 python scripts\run_research_experiment.py --dataset smiyc
-```
-
-Run RoadAnomaly21:
-
-```powershell
 python scripts\run_research_experiment.py --dataset road_anomaly
-```
-
-Run StreetHazards partial 149:
-
-```powershell
 python scripts\run_research_experiment.py --dataset street_hazards --out outputs\research_experiment_street_hazards_149
 ```
 
-Generate paper figures:
+Generate paper tables and figures:
 
 ```powershell
-python scripts\make_paper_assets.py
+python scripts\make_metric_digest.py
+python scripts\make_ablation_and_objective_tables.py
+python scripts\make_publication_figures.py
 ```
 
-For a more detailed reproduction guide, see `REPRODUCE.md`.
-
-Package a clean release:
-
-```powershell
-python scripts\package_release.py
-```
-
-Compile the CCIS PDF:
-
-```powershell
-python scripts\build_ccis_pdf.py
-```
-
-Prepare final submission artifacts after editing `paper/author_metadata_template.json`:
-
-```powershell
-python scripts\prepare_final_submission.py --metadata paper\author_metadata_template.json
-```
-
-Replace author metadata before final submission:
-
-```powershell
-python scripts\set_paper_metadata.py --authors "First Author\inst{1} \and Second Author\inst{1}" --authorrunning "F. Author et al." --institute "Institution Name, City, Country" --email "author@example.com"
-```
-
-## Outputs
+## Final Outputs
 
 Each experiment writes:
 
 ```text
 outputs/research_experiment_<dataset>/
-  metrics.json
-  comparison_table.csv
-  warning_events.jsonl
-  heatmaps/
-  binary_masks/
-  reports/result_table.md
-  reports/method_grid.png
+  metrics.json              final averaged metrics
+  comparison_table.csv      per-image metrics
+  warning_events.jsonl      warning boxes and risk scores
+  heatmaps/                 anomaly heatmaps
+  binary_masks/             thresholded black-white masks
+  reports/result_table.md   readable result table
 ```
 
-Paper figures:
+Current formal output folders:
 
 ```text
+outputs/research_experiment_smiyc
+outputs/research_experiment_road_anomaly
+outputs/research_experiment_street_hazards_149
+```
+
+Paper-ready materials:
+
+```text
+paper/figures/main_qualitative_figure.png
 paper/figures/framework_pipeline.png
 paper/figures/warning_event_example.png
-```
-
-## Current Results
-
-Summary documents:
-
-```text
-paper/三数据集实验汇总.md
-paper/五轮自我纠错日志.md
-paper/投稿冲刺清单.md
-paper/submission_readiness_audit.md
-paper/paper_outline_en.md
-paper/paper_draft_en.md
-paper/paper_ccis_latex.tex
-paper/ccis_submission_notes.md
-paper/references.bib
-paper/release_checklist.md
+paper/tables/quantitative_digest.md
+paper/tables/ablation_objective.md
 paper/RaOD-ERAS_CCIS_draft.pdf
-paper/final_submission_checklist.md
-paper/submission_form_fields.md
-paper/statements.md
-paper/author_metadata_template.json
-paper/author_metadata_examples.md
-paper/最后提交怎么做.md
 ```
 
-Main current finding:
+## Current Result Summary
+
+| Dataset | Best honest claim |
+|---|---|
+| SMIYC RoadObstacle | `dino_eras_light` slightly improves AP/F1/Recall/FPR95 over raw DINOv2 |
+| RoadAnomaly21 | `dino_eras_balanced` improves AP/F1/IoU/FPR95 under domain shift |
+| StreetHazards partial | ERAS improves Recall/FPR95, but raw DINOv2 keeps better AP/F1 |
+
+So the paper should not claim universal SOTA. The correct claim is a lightweight, training-free, risk-aware road anomaly warning framework.
+
+## More Details
+
+Read:
 
 ```text
-SMIYC: DINO + ERAS light gives the best AP/FPR95.
-RoadAnomaly21: DINO + ERAS balanced improves DINO under domain shift.
-StreetHazards partial 149: raw DINO gives better AP/F1, while ERAS light lowers FPR95.
+PROJECT_STRUCTURE.md
+REPRODUCE.md
+paper/current_research_status.md
+paper/submission_form_fields.md
 ```
 
-## Claim Boundary
+Before final submission, fill:
 
-This is not a supervised SOTA model. The intended claim is a lightweight, training-free framework that combines pretrained semantic features, road-prototype anomaly scoring, and risk-aware warning output.
+```text
+paper/author_metadata_template.json
+```
+
+Then run:
+
+```powershell
+python scripts\prepare_final_submission.py --metadata paper\author_metadata_template.json
+```
