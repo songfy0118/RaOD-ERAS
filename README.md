@@ -1,5 +1,7 @@
 # RiskPrompt-SAM (RaOD-ERAS workspace)
 
+[English](README.md) | [简体中文](README_CN.md)
+
 Road-aware SAM prompting and mask feedback for training-free unexpected road-obstacle segmentation.
 
 This repository contains the RiskPrompt-SAM conference-paper experiment, the earlier RaOD-ERAS prototype, a 189-pair unified evaluation archive, paper assets, and reproduction scripts. RiskPrompt-SAM uses a shared DINOv2 anomaly map and SAM-B to compare thresholding, S2M-style box prompting, UGainS-style farthest-point prompting, and the proposed road-aware box selection with mask feedback.
