@@ -24,10 +24,12 @@ class DINOEncoder:
         self.model = torch.hub.load("facebookresearch/dinov2", self.model_name)
         self.model.eval()
 
-    def patch_features(self, image: Image.Image) -> np.ndarray:
+    def patch_features(self, image: Image.Image, input_size: int | None = None) -> np.ndarray:
+        size = input_size or self.input_size
+        size = max(14, int(round(size / 14)) * 14)
         prep = self.transforms.Compose(
             [
-                self.transforms.Resize((self.input_size, self.input_size)),
+                self.transforms.Resize((size, size)),
                 self.transforms.ToTensor(),
                 self.transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             ]
@@ -41,7 +43,29 @@ class DINOEncoder:
 
 
 def road_prototype_heatmap(encoder: DINOEncoder, image: Image.Image, out_shape: tuple[int, int]) -> np.ndarray:
-    feats = encoder.patch_features(image)
+    return _road_prototype_heatmap(encoder, image, out_shape, encoder.input_size)
+
+
+def multiscale_road_prototype_heatmap(
+    encoder: DINOEncoder,
+    image: Image.Image,
+    out_shape: tuple[int, int],
+    scales: tuple[float, ...] = (0.75, 1.0),
+) -> np.ndarray:
+    heatmaps = [
+        _road_prototype_heatmap(encoder, image, out_shape, int(encoder.input_size * scale))
+        for scale in scales
+    ]
+    return normalize_score(np.mean(heatmaps, axis=0))
+
+
+def _road_prototype_heatmap(
+    encoder: DINOEncoder,
+    image: Image.Image,
+    out_shape: tuple[int, int],
+    input_size: int,
+) -> np.ndarray:
+    feats = encoder.patch_features(image, input_size=input_size)
     grid = feats.shape[0]
     road = trapezoid_road_prior((grid, grid)) > 0
     proto = feats[road].mean(axis=0)

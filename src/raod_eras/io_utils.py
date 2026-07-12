@@ -43,3 +43,8 @@ def save_heatmap(path: Path, score: np.ndarray, cmap: str = "RdYlBu_r") -> None:
 def save_binary(path: Path, score: np.ndarray, threshold: float) -> None:
     ensure_dir(path.parent)
     Image.fromarray(((score >= threshold) * 255).astype(np.uint8)).save(path)
+
+
+def save_mask(path: Path, mask: np.ndarray) -> None:
+    ensure_dir(path.parent)
+    Image.fromarray((mask.astype(bool) * 255).astype(np.uint8)).save(path)

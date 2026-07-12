@@ -8,12 +8,14 @@ import numpy as np
 from .baselines import road_contrast_heatmap
 from .config import ExperimentConfig
 from .datasets import SMIYCRoadObstacleDataset
-from .dino_features import DINOEncoder, road_prototype_heatmap
-from .io_utils import save_binary, save_csv, save_heatmap, save_json, save_jsonl
-from .metrics import MetricConfig, evaluate_heatmap
+from .dino_features import DINOEncoder, multiscale_road_prototype_heatmap, road_prototype_heatmap
+from .io_utils import save_binary, save_csv, save_heatmap, save_json, save_jsonl, save_mask
+from .metrics import MetricConfig, evaluate_binary, evaluate_heatmap
+from .object_refinement import AnomalyInstance, refine_objects
 from .priors import ego_lane_prior, near_field_weight, normalize_score, trapezoid_road_prior
 from .refinement import DEFAULT_ERAS_VARIANTS, connected_components, refine_heatmap
 from .reporting import make_method_grid, write_markdown_result_table
+from .risk_planning import plan_risk_response
 
 
 def summarize(rows: list[dict[str, object]]) -> dict[str, float]:
@@ -28,11 +30,30 @@ def summarize(rows: list[dict[str, object]]) -> dict[str, float]:
     return summary
 
 
+def summarize_risk_plans(plans: list[dict[str, object]]) -> dict[str, object]:
+    actions: dict[str, int] = {}
+    clearances: list[float] = []
+    for plan in plans:
+        action = str(plan["selected_action"])
+        actions[action] = actions.get(action, 0) + 1
+        selected = plan["selected_trajectory"]
+        if isinstance(selected, dict):
+            clearances.append(float(selected["minimum_clearance"]))
+    return {
+        "num_plans": len(plans),
+        "action_counts": actions,
+        "non_braking_rate": float(sum(action != "brake_or_stop" for action in (str(p["selected_action"]) for p in plans)) / max(len(plans), 1)),
+        "mean_selected_clearance": float(np.mean(clearances)) if clearances else 0.0,
+        "scope": "image-plane rule validation; not a vehicle controller",
+    }
+
+
 def warning_events_from_binary_score(
     sample_id: str,
     method_name: str,
     score: np.ndarray,
     threshold: float,
+    binary_mask: np.ndarray | None = None,
     max_events: int = 20,
 ) -> list[dict[str, object]]:
     """Convert the final thresholded output into ranked downstream warning events."""
@@ -40,7 +61,7 @@ def warning_events_from_binary_score(
     road = trapezoid_road_prior((h, w))
     lane = ego_lane_prior((h, w))
     near = np.repeat(near_field_weight((h, w)), w, axis=1)
-    _, comps = connected_components(score >= threshold)
+    _, comps = connected_components(score >= threshold if binary_mask is None else binary_mask)
     image_area = h * w
     min_area = max(24, int(image_area * 0.00008))
     max_area = int(image_area * 0.20)
@@ -100,15 +121,18 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
     rows: list[dict[str, object]] = []
     method_names: set[str] = set()
     image_paths: list[Path] = []
-    gt_paths: list[Path] = []
+    gt_masks: list[np.ndarray] = []
     heatmap_paths: dict[str, list[Path]] = {}
     warning_events: list[dict[str, object]] = []
+    risk_plans: list[dict[str, object]] = []
 
     for sample in samples:
         loaded = dataset.load(sample)
         image_paths.append(sample.image_path)
-        gt_paths.append(sample.gt_path)
+        gt_masks.append(loaded.gt)
         outputs: dict[str, np.ndarray] = {}
+        object_masks: dict[str, np.ndarray] = {}
+        object_instances: dict[str, list[AnomalyInstance]] = {}
         timings: dict[str, float] = {}
 
         if config.method.use_roadcontrast:
@@ -121,8 +145,28 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
             outputs["dino"] = road_prototype_heatmap(encoder, loaded.image, loaded.gt.shape)
             timings["dino_seconds"] = time.perf_counter() - t0
 
+            t0 = time.perf_counter()
+            outputs["dino_multiscale"] = multiscale_road_prototype_heatmap(
+                encoder,
+                loaded.image,
+                loaded.gt.shape,
+            )
+            timings["dino_multiscale_seconds"] = time.perf_counter() - t0
+
+            h, w = loaded.gt.shape
+            road = trapezoid_road_prior((h, w))
+            lane = ego_lane_prior((h, w))
+            near = np.repeat(near_field_weight((h, w)), w, axis=1)
+            local = outputs.get("roadcontrast", np.zeros_like(outputs["dino_multiscale"]))
+            risk_prior = 0.62 + 0.20 * road + 0.18 * lane * near
+            outputs["dino_risk_heatmap"] = normalize_score(
+                (0.78 * outputs["dino_multiscale"] + 0.22 * local) * risk_prior
+            )
+
         if config.method.use_eras:
             for base_name, base_score in list(outputs.items()):
+                if base_name not in {"roadcontrast", "dino", "dino_risk_heatmap"}:
+                    continue
                 refined_outputs: dict[str, np.ndarray] = {}
                 for variant in DEFAULT_ERAS_VARIANTS:
                     method_name = f"{base_name}_{variant.name}"
@@ -135,22 +179,60 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
                     outputs["dino_eras_guarded"] = normalize_score(0.78 * base_score + 0.22 * refined_outputs["eras_light"])
                     timings["dino_eras_guarded_seconds"] = time.perf_counter() - t0
 
+        for source_name in (
+            "roadcontrast_eras_balanced",
+            "dino_eras_balanced",
+            "dino_risk_heatmap_eras_balanced",
+        ):
+            if source_name not in outputs:
+                continue
+            method_name = source_name.replace("eras_balanced", "closed_loop")
+            t0 = time.perf_counter()
+            closed_heatmap, closed_mask, instances = refine_objects(outputs[source_name])
+            outputs[method_name] = closed_heatmap
+            object_masks[method_name] = closed_mask
+            object_instances[method_name] = instances
+            timings[f"{method_name}_seconds"] = time.perf_counter() - t0
+
         row: dict[str, object] = {"id": sample.sample_id}
         row.update(timings)
         for method_name, score in outputs.items():
             method_names.add(method_name)
+            output_threshold = config.method.output_threshold
+            binary_mask = object_masks.get(method_name)
+            if binary_mask is None:
+                binary_mask = score >= output_threshold
             metrics = evaluate_heatmap(score, loaded.gt, loaded.valid, metric_config)
+            metrics.update(evaluate_binary(binary_mask, loaded.gt, loaded.valid))
             for metric_name, value in metrics.items():
                 row[f"{method_name}_{metric_name}"] = value
             heatmap_path = config.output.output_dir / config.output.heatmap_dir / method_name / f"{sample.sample_id}.png"
             binary_path = config.output.output_dir / config.output.binary_dir / method_name / f"{sample.sample_id}.png"
             save_heatmap(heatmap_path, score)
-            output_threshold = config.method.output_threshold
-            save_binary(binary_path, score, output_threshold)
+            if method_name not in object_masks:
+                save_binary(binary_path, score, output_threshold)
+            else:
+                save_mask(binary_path, binary_mask)
             heatmap_paths.setdefault(method_name, []).append(heatmap_path)
             warning_events.extend(
-                warning_events_from_binary_score(sample.sample_id, method_name, score, output_threshold)
+                warning_events_from_binary_score(
+                    sample.sample_id,
+                    method_name,
+                    score,
+                    output_threshold,
+                    binary_mask=binary_mask,
+                )
             )
+            if method_name in object_instances:
+                plan = plan_risk_response(score, object_instances[method_name])
+                plan.update(
+                    {
+                        "sample_id": sample.sample_id,
+                        "method": method_name,
+                        "instances": [instance.to_dict() for instance in object_instances[method_name]],
+                    }
+                )
+                risk_plans.append(plan)
         rows.append(row)
 
     summary = summarize(rows)
@@ -158,12 +240,44 @@ def run_experiment(config: ExperimentConfig) -> dict[str, float]:
     save_csv(config.output.output_dir / "comparison_table.csv", rows)
     save_json(config.output.output_dir / "metrics.json", summary)
     save_jsonl(config.output.output_dir / "warning_events.jsonl", warning_events)
+    save_jsonl(config.output.output_dir / "risk_plans.jsonl", risk_plans)
+    save_json(config.output.output_dir / "risk_summary.json", summarize_risk_plans(risk_plans))
+    save_json(
+        config.output.output_dir / "ablation_manifest.json",
+        {
+            "ordered_chain": [
+                "dino",
+                "dino_multiscale",
+                "dino_risk_heatmap",
+                "dino_risk_heatmap_eras_balanced",
+                "dino_risk_heatmap_closed_loop",
+            ],
+            "notes": {
+                "dino": "single-scale road-prototype baseline",
+                "dino_multiscale": "multi-scale road-prototype heatmap",
+                "dino_risk_heatmap": "multi-scale heatmap plus local contrast and road/lane risk prior",
+                "dino_risk_heatmap_eras_balanced": "risk heatmap plus ERAS spatial refinement",
+                "dino_risk_heatmap_closed_loop": "object verification and mask-to-heatmap feedback",
+            },
+        },
+    )
     write_markdown_result_table(config.output.output_dir / config.output.report_dir / "result_table.md", summary, method_list)
-    selected_methods = [name for name in ["roadcontrast", "roadcontrast_eras_balanced", "dino", "dino_eras_light", "dino_eras_balanced"] if name in heatmap_paths]
+    selected_methods = [
+        name
+        for name in [
+            "roadcontrast",
+            "roadcontrast_closed_loop",
+            "dino",
+            "dino_multiscale",
+            "dino_risk_heatmap",
+            "dino_risk_heatmap_closed_loop",
+        ]
+        if name in heatmap_paths
+    ]
     if selected_methods:
         make_method_grid(
             image_paths,
-            gt_paths,
+            gt_masks,
             {name: heatmap_paths[name] for name in selected_methods},
             config.output.output_dir / config.output.report_dir / "method_grid.png",
         )

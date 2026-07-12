@@ -47,8 +47,10 @@ data/unified_road_anomaly_eval/
 | `priors.py` | Road trapezoid, ego-lane, near-field priors, score normalization |
 | `refinement.py` | ERAS variants and connected-component risk refinement |
 | `metrics.py` | AP, F1, IoU, Precision, Recall, FPR95 evaluation |
+| `object_refinement.py` | Seeded object segmentation and mask-to-heatmap feedback |
 | `io_utils.py` | Save JSON, CSV, heatmaps, binary masks |
 | `reporting.py` | Result tables and method-grid image generation |
+| `risk_planning.py` | Image-plane candidate trajectory and braking cost evaluation |
 | `experiment.py` | Main experiment loop: run methods, save outputs, compute metrics |
 | `__init__.py` | Package marker |
 
@@ -108,6 +110,9 @@ python scripts\make_paper_assets.py
 | `heatmaps/<method>/*.png` | Model anomaly heatmap. Red/yellow means more anomalous. |
 | `binary_masks/<method>/*.png` | Black-white mask from thresholding heatmap. White means predicted anomaly. |
 | `warning_events.jsonl` | Connected components converted into warning events: bbox, risk score, action. |
+| `risk_plans.jsonl` | Candidate trajectory costs and selected rule action. |
+| `risk_summary.json` | Aggregate action counts and normalized clearance proxy. |
+| `ablation_manifest.json` | Ordered method chain used for ablation reporting. |
 | `metrics.json` | Average metrics over the dataset. |
 | `comparison_table.csv` | Per-image metrics for every method. |
 | `reports/result_table.md` | Human-readable result table. |

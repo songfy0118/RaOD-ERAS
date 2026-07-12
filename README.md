@@ -82,9 +82,11 @@ CIVS/
 | `experiment.py` | Main experiment pipeline: run methods, save outputs, compute metrics |
 | `io_utils.py` | Saves JSON, JSONL, CSV, heatmap PNG, and binary mask PNG |
 | `metrics.py` | Computes AP, F1, IoU, precision, recall, and FPR95 |
+| `object_refinement.py` | Seeded object candidates, boundary filtering, and mask-to-heatmap feedback |
 | `priors.py` | Road trapezoid prior, ego-lane prior, near-field prior, normalization |
 | `refinement.py` | ERAS variants and connected-component risk refinement |
 | `reporting.py` | Markdown tables and visual comparison grids |
+| `risk_planning.py` | Image-plane risk map and candidate trajectory scoring |
 
 ## Script Files
 
@@ -193,6 +195,9 @@ outputs/research_experiment_<dataset>/
   metrics.json              averaged metrics over the dataset
   comparison_table.csv      per-image detailed metrics
   warning_events.jsonl      warning boxes and risk scores
+  risk_plans.jsonl          trajectory costs and selected rule action
+  risk_summary.json         action counts and clearance summary
+  ablation_manifest.json    ordered method chain and module definitions
   heatmaps/                 anomaly heatmap PNGs
   binary_masks/             thresholded black-white masks
   reports/result_table.md   readable result table
@@ -238,6 +243,19 @@ L = 0.40 * (1 - AP) + 0.35 * (1 - F1) + 0.25 * FPR95
 This is not a neural-network training loss. It is an exploratory validation-time selection objective for a training-free pipeline.
 
 Important: the current F1, IoU, Precision, Recall, and reported thresholds are computed using a per-image best-F1 threshold. AP and FPR95 are also computed per image and then averaged. These numbers are useful for internal comparison but are not official benchmark submissions or deployment metrics. Saved binary masks and warning events use the fixed `--output-threshold` value instead of GT-selected thresholds.
+
+The implemented ablation chain is:
+
+```text
+DINO road prototype
+  -> DINO multi-scale
+  -> risk-guided heatmap
+  -> ERAS spatial refinement
+  -> seeded object segmentation and mask feedback
+  -> image-plane risk planning
+```
+
+The object-feedback and trajectory modules remain experimental. A five-sample engineering check improved the risk-guided heatmap but did not validate object feedback as an accuracy improvement. See `paper/closed_loop_experiment_status.md`.
 
 ## Current Exploratory Result
 
