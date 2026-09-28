@@ -1,156 +1,76 @@
-# RiskPrompt-SAM
+# RPSAN / RiskPrompt-SAM
 
-[English](README.md) | [简体中文](README_CN.md)
+**Road-aware prompting and mask feedback for unknown road-obstacle segmentation.**
 
-RiskPrompt-SAM is a training-free framework for unexpected road-obstacle segmentation. DINOv2 ViT-S/14 and SAM ViT-B are frozen; anomaly ground truth is used only for evaluation, never by inference.
+[English](README.md) · [简体中文](README_CN.md) · [Run instructions](REPRODUCE.md) · [Experiment results](docs/RESULTS.md) · [Validation](docs/VALIDATION.md)
 
-## Status and Claim
+RPSAN investigates how frozen DINOv2 features and Segment Anything can identify unexpected road obstacles without anomaly-specific model training. Road-aware prompts guide SAM toward candidate objects; accepted-mask feedback refines the continuous anomaly map.
 
-The repository contains the final small-conference experiment: a 189-image controlled ablation, three-source analysis, 5,000-replicate paired bootstrap, and an evaluation with the official SegmentMeIfYouCan RoadObstacle validation protocol.
+The repository keeps its historical URL, `RaOD-ERAS`. The public implementation and result files use **RiskPrompt-SAM**, an experimental version of the RPSAN research project. This release documents that public snapshot; it does not claim to reproduce every experiment in later manuscript revisions.
 
-The supported claim is deliberately narrow:
+## Try one image
 
-> Road-aware prompting improves object-level binary segmentation, while feedback from accepted SAM masks improves continuous anomaly ranking. The method obtains competitive SMIYC AUPR without anomaly training, but it is not a universal or full-SOTA result.
+Use Python 3.10+ and run commands from the repository root. Install a PyTorch/torchvision build appropriate for your CPU or CUDA environment, then:
 
-## Inputs and Outputs
+```bash
+git clone https://github.com/songfy0118/RaOD-ERAS.git
+cd RaOD-ERAS
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+python scripts/predict_image.py --help
+```
 
-Given one road RGB image, the pipeline returns:
+Download the **SAM ViT-B** checkpoint from the [official Segment Anything repository](https://github.com/facebookresearch/segment-anything#model-checkpoints). Pass its path and any road image:
 
-1. a continuous anomaly heatmap, evaluated by AP/AUPR and FPR95;
-2. a binary obstacle mask, evaluated by precision, recall, F1, IoU, boundary F1, and component F1;
-3. image-plane warning attributes. These are not metric depth, TTC, or closed-loop control predictions.
+```bash
+python scripts/predict_image.py --image path/to/road.jpg --sam-checkpoint path/to/sam_vit_b_01ec64.pth --out outputs/example
+```
+
+This path needs **no label mask or benchmark dataset**. DINOv2 ViT-S/14 is loaded through the [official DINOv2 Torch Hub entry](https://github.com/facebookresearch/dinov2); first use requires network access and disk space for its code and weights. Later runs use the local cache. CPU is supported; a GPU is recommended.
+
+The output folder contains:
+
+| File | Content |
+|---|---|
+| `mask.png` | Binary obstacle mask, 0/255 |
+| `overlay.png` | Mask over the input image |
+| `anomaly.png` | Refined anomaly heatmap |
+| `scores.npz` | Base score, refined score and boolean mask arrays |
+| `result.json` | Input/output sizes, device, timing, prompt boxes and method scope |
+
+The default longest-side limit is 1,024 pixels. Output arrays match the processed image, not necessarily the original size; use `--max-side 0` for native resolution. Timing excludes model loading and output encoding.
 
 ## Method
 
 ```mermaid
 flowchart LR
-    A["RGB road image"] --> B["Frozen DINOv2\nmulti-scale features"]
-    B --> C["Road-prototype distance\nand local contrast"]
-    C --> D["Base anomaly heatmap"]
-    D --> E["Road, ego-lane,\nnear-field priors"]
-    E --> F["Adaptive boxes\nand peak fallback"]
-    F --> G["Frozen SAM-B\ncandidate masks"]
-    G --> H["Binary obstacle mask"]
-    G --> I["Accepted-mask feedback"]
-    I --> J["Refined anomaly heatmap"]
+    A[RGB image] --> B[Frozen DINOv2 features]
+    B --> C[Road prototype and local contrast]
+    C --> D[Road-aware candidate boxes]
+    D --> E[Frozen SAM masks]
+    E --> F[Binary obstacle mask]
+    E --> G[Accepted-mask feedback]
+    C --> G
+    G --> H[Refined anomaly score]
 ```
 
-DINOv2 provides generic features. A road prototype estimated from lower-image candidate road patches is combined with multi-scale feature distance, local road contrast, and image-plane priors to form a continuous anomaly score.
+The single-image entry runs the public **D: full feedback** ablation. The A–D study isolates road-aware prompts, a boundary tie-break, and accepted-mask feedback. C and D share the same binary mask; feedback changes continuous ranking only. The boundary tie-break did not show a significant independent gain in the stored study.
 
-Instead of converting every high-score component directly into a SAM prompt, RiskPrompt ranks candidates using road overlap, ego-lane overlap, near-field position, and regional anomaly strength, with peak fallback for small obstacles. Accepted SAM masks reinforce object interiors and suppress unsupported scattered responses in the heatmap.
+## Evidence and limits
 
-The boundary tie-break is retained only as an implementation detail: its independent gain was not significant on the 189-image ablation.
+The archived controlled experiment covers **189 image/label pairs**: 10 RoadAnomaly, 30 SMIYC RoadObstacle validation and 149 StreetHazards images. Stored reports also include the official SMIYC validation protocol. See [the full tables and trade-offs](docs/RESULTS.md); these are historical reported results, not new measurements from the single-image example.
 
-## Controlled Ablation
+Ground truth is used only for evaluation. Road priors are fixed image-plane heuristics. Outputs are not metric distance, time-to-collision or validated vehicle-control commands. A successful example demonstrates software execution, not benchmark accuracy or deployment readiness.
 
-Every variant uses the same images, DINOv2 front end, SAM-B, labels, and evaluation code.
+## Navigate the code
 
-| Variant | Road-aware prompts | Boundary tie-break | Mask feedback | Purpose |
-|---|:---:|:---:|:---:|---|
-| A: basic boxes | No | No | No | shared-front-end box baseline |
-| B: road boxes | Yes | No | No | isolates road-aware prompting |
-| C: boundary selection | Yes | Yes | No | tests candidate selection |
-| D: full method | Yes | Yes | Yes | tests heatmap feedback |
+- [src/raod_eras/inference.py](src/raod_eras/inference.py): image-to-score and image-to-mask API.
+- [src/raod_eras/score_to_mask.py](src/raod_eras/score_to_mask.py): prompt generation, SAM selection and feedback.
+- [src/raod_eras/dino_features.py](src/raod_eras/dino_features.py): feature extraction and road prototypes.
+- [scripts/run_prompt_ablation.py](scripts/run_prompt_ablation.py): controlled A–D evaluation.
+- [scripts/evaluate_smiyc_official.py](scripts/evaluate_smiyc_official.py): external official evaluator integration.
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md): data, code and results map.
 
-C and D intentionally share the same binary mask. Their difference is evaluated only on continuous heatmap AP/FPR95.
+## Attribution
 
-## Data and Protocol
-
-| Source | Image/GT pairs | Role |
-|---|---:|---|
-| RoadAnomaly | 10 | real-road cross-dataset validation |
-| SMIYC RoadObstacle | 30 | primary real obstacle validation |
-| StreetHazards partial | 149 | larger synthetic OOD validation |
-| Total | 189 | unified controlled-ablation manifest |
-
-Labels are standardized as `0=normal`, `1=anomaly`, and `255=ignore`. The 189-pair manifest is a convenience evaluation index over public subsets, not a new dataset or the full hidden test split of any benchmark.
-
-Ten deterministic development samples were used to check the implementation, followed by a disjoint 20-sample stability check. Parameters were then frozen for all 189 pairs. Inference never reads GT.
-
-## Main Results
-
-Pixel-micro results on all 189 pairs:
-
-| Variant | Precision | Recall | F1 | IoU | AP | FPR95↓ |
-|---|---:|---:|---:|---:|---:|---:|
-| A: basic boxes | 0.1282 | 0.1223 | 0.1252 | 0.0668 | 0.0492 | 0.8609 |
-| B: road boxes | 0.1587 | 0.1834 | 0.1701 | 0.0930 | 0.0492 | 0.8609 |
-| C: boundary selection | 0.1593 | 0.1836 | 0.1706 | 0.0932 | 0.0492 | 0.8609 |
-| D: full method | **0.1593** | **0.1836** | **0.1706** | **0.0932** | **0.0810** | **0.8551** |
-
-Road-aware prompting improves image-macro F1 by `+0.0615` (95% CI `[0.0488, 0.0748]`) and IoU by `+0.0363` (`[0.0264, 0.0475]`) relative to A. The C-vs-B effect is not significant. Feedback raises pixel-micro AP from `0.0492` to `0.0810` and reduces FPR95 from `0.8609` to `0.8551`.
-
-Official SMIYC `ObstacleTrack-validation` evaluation:
-
-| Method | AUPR↑ | FPR95↓ | GT-sIoU↑ | PPV↑ | mean F1↑ |
-|---|---:|---:|---:|---:|---:|
-| DINO base heatmap | 69.26 | **1.29** | 24.42 | 68.87 | 35.17 |
-| RiskPrompt-SAM | **91.90** | 1.48 | **48.39** | **71.17** | **62.34** |
-
-Feedback substantially improves AUPR and segment metrics, but FPR95 worsens by 0.18 percentage points. This trade-off must remain visible.
-
-## Reproduction
-
-Install dependencies and retrieve Git LFS artifacts:
-
-```powershell
-python -m pip install -r requirements.txt
-git lfs pull
-```
-
-The CUDA environment must contain the SAM ViT-B checkpoint at:
-
-```text
-external/S2M_official/tools/sam_vit_b_01ec64.pth
-```
-
-### One-image smoke test
-
-```powershell
-conda run -n Test2 python scripts\run_s2m_comparison.py --max-samples 1 --out outputs\riskprompt_smoke
-conda run -n Test2 python scripts\run_prompt_ablation.py --max-samples 1 --source-cache outputs\riskprompt_smoke\cache --ablation-cache outputs\riskprompt_ablation_smoke_cache --out outputs\riskprompt_ablation_smoke --save-visuals
-```
-
-### Disjoint stability checks
-
-```powershell
-conda run -n Test2 python scripts\run_prompt_ablation.py --max-samples 10 --source-cache outputs\riskprompt_full_189\cache --out outputs\ablation_calibration_10 --save-visuals
-conda run -n Test2 python scripts\run_prompt_ablation.py --max-samples 20 --sample-offset 10 --source-cache outputs\riskprompt_full_189\cache --out outputs\ablation_validation_20 --save-visuals
-```
-
-### Full 189-pair experiment
-
-```powershell
-conda run -n Test2 python scripts\run_s2m_comparison.py --max-samples 189 --ugains-threshold 0.60 --out outputs\riskprompt_full_189
-conda run -n Test2 python scripts\run_prompt_ablation.py --max-samples 189 --source-cache outputs\riskprompt_full_189\cache --out outputs\riskprompt_ablation_full_189_v2 --save-visuals
-conda run -n Test2 python scripts\analyze_ablation_results.py outputs\riskprompt_ablation_full_189_v2\results.json
-```
-
-Runs are cached per image and resume from existing cache files.
-
-### Official SMIYC protocol
-
-```powershell
-conda run -n Test2 python scripts\evaluate_smiyc_official.py --method-name RiskPromptSAM-v2 --cache outputs\riskprompt_ablation_cache --score-key feedback_score
-```
-
-This step requires `external/road-anomaly-benchmark` and its configured `ObstacleTrack-validation` data.
-
-## Key Paths
-
-```text
-src/raod_eras/dino_features.py             DINOv2 road-prototype heatmap
-src/raod_eras/score_to_mask.py             prompts, SAM selection, feedback
-src/raod_eras/metrics.py                   pixel, component, boundary metrics
-scripts/run_s2m_comparison.py              shared-front-end cache and baselines
-scripts/run_prompt_ablation.py             final A-D ablation entry point
-scripts/analyze_ablation_results.py        paired bootstrap and report
-scripts/evaluate_smiyc_official.py          official SMIYC evaluation
-outputs/riskprompt_ablation_full_189_v2/    final controlled experiment
-outputs/smiyc_official_protocol/            official protocol results
-paper/RiskPrompt-SAM_中文论文初稿.docx       Chinese paper draft
-```
-
-## Limitations
-
-The current evidence supports a small conference paper, not a journal-level or universal SOTA claim. Limitations include mixed cross-dataset behavior, a fixed image-plane road prior, only 189 locally available public pairs, and no depth, TTC, trajectory, or risk ground truth. The warning output is therefore an interpretable image-plane application layer, not validated vehicle control.
+DINOv2, Segment Anything, S2M-style/UGainS-style comparisons and the source datasets retain their upstream licenses and attribution. Style-based comparisons in this repository are not official end-to-end baseline reproductions. No new blanket license for third-party code, weights or data is asserted.
