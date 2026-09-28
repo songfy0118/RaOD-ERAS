@@ -8,6 +8,10 @@ RPSAN investigates how frozen DINOv2 features and Segment Anything can identify 
 
 The repository keeps its historical URL, `RaOD-ERAS`. The public implementation and result files use **RiskPrompt-SAM**, an experimental version of the RPSAN research project. This release documents that public snapshot; it does not claim to reproduce every experiment in later manuscript revisions.
 
+![Archived qualitative comparison across road anomaly sources: input, ground truth, heatmaps and predicted masks](paper/figures/riskprompt_qualitative.png)
+
+*Examples from the archived 189-image evaluation. They illustrate both correct detections and remaining false positives; single-image CLI output is not a new benchmark result.*
+
 ## Try one image
 
 Use Python 3.10+ and run commands from the repository root. Install a PyTorch/torchvision build appropriate for your CPU or CUDA environment, then:
